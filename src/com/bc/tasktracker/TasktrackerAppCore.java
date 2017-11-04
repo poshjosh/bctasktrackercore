@@ -22,7 +22,6 @@ import com.bc.appcore.AppCore;
 import com.bc.appcore.User;
 import com.bc.appcore.actions.Action;
 import com.bc.appcore.html.HtmlBuilder;
-import com.bc.appcore.jpa.model.ResultModel;
 import com.bc.appcore.util.ListedOrder;
 import com.bc.tasktracker.actions.TasktrackerCoreActionCommands;
 import com.bc.tasktracker.html.TaskHtmlBuilder;
@@ -30,21 +29,20 @@ import com.bc.tasktracker.html.TaskresponseHtmlBuilder;
 import com.bc.tasktracker.jpa.TasktrackerSearchContext;
 import com.bc.tasktracker.jpa.TasktrackerSearchContextImpl;
 import com.bc.tasktracker.jpa.entities.master.Doc;
-import com.bc.tasktracker.jpa.entities.master.Doc_;
 import com.bc.tasktracker.jpa.entities.master.Task;
-import com.bc.tasktracker.jpa.entities.master.Task_;
 import com.bc.tasktracker.jpa.entities.master.Taskresponse;
 import com.bc.tasktracker.jpa.entities.master.Unit;
 import com.bc.tasktracker.jpa.model.TasktrackerCoreResultModel;
 import java.io.File;
-import java.text.DateFormat;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.concurrent.Callable;
-import java.util.function.Predicate;
-import javax.persistence.EntityManager;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import com.bc.appcore.jpa.model.EntityResultModel;
+import java.util.Optional;
 
 /**
  * @author Chinomso Bassey Ikwuagwu on Feb 7, 2017 11:10:58 PM
@@ -53,7 +51,7 @@ public interface TasktrackerAppCore extends AppCore {
     
     @Override
     default <T> TasktrackerSearchContext<T> getSearchContext(Class<T> entityType) {
-        final ResultModel resultModel = this.getResultModel(entityType, null);
+        final EntityResultModel resultModel = this.getResultModel(entityType, null);
         return new TasktrackerSearchContextImpl<>(this, Objects.requireNonNull(resultModel));
     }
     
@@ -68,7 +66,8 @@ public interface TasktrackerAppCore extends AppCore {
     }
     
     default Appointment getApexAppointment() {
-        return this.getJpaContext().getDao(Appointment.class).find(Appointment.class, 1);
+        final int id = this.getConfig().getInt(ConfigNames.APEXAPPOINTMENT_APPOINTMENTID, 1);
+        return this.getActivePersistenceUnitContext().getDao().find(Appointment.class, id);
     }
     
     default Appointment getUserAppointment(Appointment outputIfNone) {
@@ -78,42 +77,29 @@ public interface TasktrackerAppCore extends AppCore {
     default Appointment getAppointment(User user, Appointment outputIfNone) {
         final Action action = this.getAction(
                 TasktrackerCoreActionCommands.GET_APPOINTMENT_FOR_USER);
-        final Appointment appt = (Appointment)action.executeSilently(
-                this, Collections.singletonMap(User.class.getName(), user), outputIfNone);
-        return appt;
+        final Optional optionalAppt = action.executeSilently(
+                this, Collections.singletonMap(User.class.getName(), user));
+        return optionalAppt.isPresent() ? (Appointment)optionalAppt.get() : outputIfNone;
     }
 
     @Override
-    default <T> ResultModel<T> getResultModel(Class<T> type, ResultModel<T> outputIfNone) {
-        final ResultModel model = this.createDefaultResultModel();
-        return model;
+    public default Class getDefaultEntityType() {
+        return Task.class;
     }
-    
-    default ResultModel<Task> createDefaultResultModel() {
-        final int serialColumnIndex = 0;
+
+    @Override
+    public default String getSerialColumnName() {
+        return this.getConfig().getString(ConfigNames.SERIAL_COLUMNNAME);
+    }
+
+    @Override
+    default EntityResultModel createResultModel(Class entityType, String[] columnNames) {
         return new TasktrackerCoreResultModel(
-                this, Task.class, this.getTaskColumnNames(), serialColumnIndex    
-        );
-    }
-    
-    default List<String> getTaskColumnNames() {
-        return Arrays.asList(
-                    this.getConfig().getString(ConfigNames.SERIAL_COLUMNNAME), 
-                    Task_.taskid.getName(), 
-                    Doc_.subject.getName(), Doc_.referencenumber.getName(),
-                    Doc_.datesigned.getName(), Task_.reponsibility.getName(),
-                    Task_.description.getName(), Task_.timeopened.getName(),
-                    "Response 1", "Response 2", "Remarks"
-            );
-    }
-
-    default Predicate<String> getPersistenceUnitNameTest() {
-        return this.getMasterPersistenceUnitTest();
-    }
-
-    @Override
-    default EntityManager getEntityManager(Class resultType) {
-        return this.getJpaContext().getEntityManager(resultType);
+                this, entityType, Arrays.asList(columnNames), 
+                (col, val) -> true, (col, exception) -> 
+                        Logger.getLogger(this.getClass().getName()).log(
+                        Level.WARNING, "Error updating: " + col, exception
+                ));
     }
 
     @Override
@@ -130,8 +116,8 @@ public interface TasktrackerAppCore extends AppCore {
     }
 
     default String[] getAppointmentNames() {
-        final List<Appointment> list = this.getJpaContext()
-                .getBuilderForSelect(Appointment.class)
+        final List<Appointment> list = this.getActivePersistenceUnitContext()
+                .getDao().forSelect(Appointment.class)
                 .from(Appointment.class)
                 .getResultsAndClose();
         final String [] names = new String[1 + list.size()];
@@ -143,8 +129,8 @@ public interface TasktrackerAppCore extends AppCore {
     }
 
     default String[] getUnitNames() {
-        final List<Unit> list = this.getJpaContext()
-                .getBuilderForSelect(Unit.class)
+        final List<Unit> list = this.getActivePersistenceUnitContext()
+                .getDao().forSelect(Unit.class).from(Unit.class)
                 .getResultsAndClose();
         final String [] names = new String[1 + list.size()];
         names[0] = null;
@@ -156,25 +142,26 @@ public interface TasktrackerAppCore extends AppCore {
     
     default List<Appointment> getTopAppointments() {
         final int count = this.getConfig().getInt("topAppointmentsCount", 13);
-        final List<Appointment> topAppointments = this.getJpaContext()
-                .getBuilderForSelect(Appointment.class)
+        final List<Appointment> topAppointments = this.getActivePersistenceUnitContext()
+                .getDao().forSelect(Appointment.class)
                 .from(Appointment.class)
                 .getResultsAndClose(0, count);
         return topAppointments;
     }
 
-    default Callable<List<File>> getUpdateOutputTask(List<Appointment> appointmentList, boolean refreshDisplay) {
+    default Callable<List<File>> getUpdateOutputTask(List<Appointment> appointmentList) {
         return () -> { return Collections.EMPTY_LIST; };
     }
     
+
     @Override
-    default DateFormat getDateTimeFormat() {
-        return new com.bc.tasktracker.util.DateTimeFormat(this);
+    default String getDateTimePattern() {
+        return this.getConfig().getString(ConfigNames.DATETIME_PATTERN, "dd-MMM-yy HH:mm");
     }
 
     @Override
-    default DateFormat getDateFormat() {
-        return new com.bc.tasktracker.util.DateFormat(this);
+    default String getDatePattern() {
+        return this.getConfig().getString(ConfigNames.DATE_PATTERN, "dd-MMM-yy");
     }
 }
 /**

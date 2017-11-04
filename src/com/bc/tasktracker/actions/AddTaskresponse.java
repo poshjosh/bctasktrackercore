@@ -33,7 +33,9 @@ import java.util.logging.Logger;
 import com.bc.appcore.actions.Action;
 import com.bc.appcore.util.TextHandler;
 import com.bc.tasktracker.TasktrackerAppCore;
+import com.bc.tasktracker.functions.GetAppointment;
 import com.bc.tasktracker.jpa.entities.master.Appointment;
+import java.util.Objects;
 
 /**
  * @author Chinomso Bassey Ikwuagwu on Feb 11, 2017 2:15:30 PM
@@ -48,7 +50,7 @@ public class AddTaskresponse implements Action<AppCore, Taskresponse> {
 
         final TasktrackerAppCore app = (TasktrackerAppCore)appCore;
         
-        try(Dao dao = app.getDao(Task.class)){
+        try(Dao dao = app.getActivePersistenceUnitContext().getDao()){
             
             final Object taskid = params.get(Task_.taskid.getName());
 
@@ -78,17 +80,20 @@ public class AddTaskresponse implements Action<AppCore, Taskresponse> {
                 }
             }
             
-            final Taskresponse response = new Taskresponse();
-            final Appointment author = app.getUserAppointment(null);
-            if(author == null) {
-                throw new TaskExecutionException("You must be logged in to perform the requested operation");
+            final Object authorObj = params.get(Taskresponse_.author.getName());
+            if(authorObj == null) {
+                throw new ParameterNotFoundException(Taskresponse_.author.getName());
             }
+            final Appointment author = new GetAppointment().apply(app.getActivePersistenceUnitContext(), authorObj);
+            Objects.requireNonNull(author);
+            
+            final Taskresponse response = new Taskresponse();
             response.setAuthor(author);
             response.setDeadline(deadline);
             response.setResponse(respStr);
             response.setTask(task); 
             
-            app.getDao(Taskresponse.class).begin().persistAndClose(response);
+            app.getActivePersistenceUnitContext().getDao().begin().persistAndClose(response);
             
             return response;
         }

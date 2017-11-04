@@ -17,25 +17,30 @@
 package com.bc.tasktracker.jpa.model;
 
 import com.bc.appcore.exceptions.UserRuntimeException;
+import com.bc.appcore.jpa.model.EntityResultModelImpl;
 import com.bc.appcore.typeprovider.TypeProvider;
-import com.bc.appcore.jpa.model.ResultModelImpl;
+import com.bc.appcore.util.Pair;
+import com.bc.config.Config;
 import com.bc.tasktracker.TasktrackerAppCore;
-import com.bc.tasktracker.functions.GetDefaultTaskreponseFilter;
+import com.bc.tasktracker.functions.TaskreponseTestProvider;
 import com.bc.tasktracker.jpa.entities.master.Appointment;
 import com.bc.tasktracker.jpa.entities.master.Doc;
 import com.bc.tasktracker.jpa.entities.master.Task;
 import com.bc.tasktracker.jpa.entities.master.Taskresponse;
 import com.bc.tasktracker.jpa.entities.master.Taskresponse_;
+import com.bc.tasktracker.jpa.predicates.TaskresponseAuthorTest;
 import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import com.bc.tasktracker.jpa.predicates.TaskresponseAuthorTest;
 import java.util.function.Predicate;
 
 /**
  * @author Chinomso Bassey Ikwuagwu on Apr 8, 2017 1:17:28 PM
  */
-public class TasktrackerCoreResultModel<T> extends ResultModelImpl<T> {
+public class TasktrackerCoreResultModel<T> extends EntityResultModelImpl<T> {
     
     private transient static final Logger logger = Logger.getLogger(TasktrackerCoreResultModel.class.getName());
 
@@ -43,31 +48,29 @@ public class TasktrackerCoreResultModel<T> extends ResultModelImpl<T> {
     
     private final Appointment currentUserAppointment;
     
-    private final Predicate<Taskresponse> acceptApexAppt;
+    private final Predicate<Taskresponse> authorIsApexAppointment;
     
-    private final Predicate<Taskresponse> remarkFilter;
-    
-    private final Predicate<Taskresponse> taskresponseFilter;
+    private final Predicate<Taskresponse> taskresponseTest;
     
     public TasktrackerCoreResultModel(
             TasktrackerAppCore app, Class<T> coreEntityType, 
-            List<String> columnNames, int serialColumnIndex) {
+            List<String> columnNames, 
+            BiPredicate<String, Object> updateFilter,
+            BiConsumer<String, Exception> updateExceptionHandler) {
         
-        super(app, coreEntityType, columnNames, serialColumnIndex, 
+        super(app, coreEntityType, columnNames, 
                 app.getOrException(TypeProvider.class), 
-                app.getMasterPersistenceUnitTest());
-        
+                updateFilter, updateExceptionHandler);
+
         this.apexAppointment = app.getApexAppointment();
-        
+
         this.currentUserAppointment = app.getUserAppointment(null);
         
-        this.acceptApexAppt = new TaskresponseAuthorTest(this.apexAppointment);
+        this.authorIsApexAppointment = new TaskresponseAuthorTest(this.apexAppointment);
         
-        this.remarkFilter = new GetDefaultTaskreponseFilter().apply(
-                this.apexAppointment, app.getConfig());
+        final BiFunction<Appointment, Config, Predicate<Taskresponse>> trtp = new TaskreponseTestProvider();
         
-        this.taskresponseFilter = new GetDefaultTaskreponseFilter().apply(
-                this.currentUserAppointment, app.getConfig());
+        this.taskresponseTest = this.authorIsApexAppointment.negate().and(trtp.apply(this.currentUserAppointment, app.getConfig()));
     }
 
     @Override
@@ -89,9 +92,13 @@ public class TasktrackerCoreResultModel<T> extends ResultModelImpl<T> {
     }
     
     @Override
-    public Object get(T entity, int rowIndex, String columnName) {
+    public Object get(T entity, int rowIndex, int columnIndex) {
+        
         final Object value;
         if(entity instanceof Task) {
+            
+            final String columnName = this.getColumnName(columnIndex);
+            
             final Task task = (Task)entity;
             if("Response 1".equals(columnName)) {
                 final Taskresponse res = this.getTaskresponse(task, columnName, false);
@@ -103,42 +110,38 @@ public class TasktrackerCoreResultModel<T> extends ResultModelImpl<T> {
                 final Taskresponse res = this.getRemark(task, columnName, false);
                 value = res == null ? null : res.getResponse();
             }else{
-                value = super.get(entity, rowIndex, columnName);
+                value = super.get(entity, rowIndex, columnIndex);
             }
         }else{
-            value = super.get(entity, rowIndex, columnName);
+            value = super.get(entity, rowIndex, columnIndex);
         }
         return value;
     }
     
     @Override
-    public Pair<Object, String> getEntityRelation(T entity, int rowIndex, String columnName, Object value) {
-        final Object target;
+    public Pair<Object, String> getEntityRelation(T entity, int rowIndex, int columnIndex, Object value) {
+        
+        final Pair<Object, String> relation;
+        final String columnName = this.getColumnName(columnIndex);
+        
         if(entity instanceof Task) {
             final Task task = (Task)entity;
             if("Response 1".equals(columnName)) {
-                Taskresponse res = this.getTaskresponse(task, columnName, true);
-                target = res;
-                columnName = Taskresponse_.response.getName();
+                final Taskresponse res = this.getTaskresponse(task, columnName, true);
+                relation = new Pair(res, Taskresponse_.response.getName());
             }else if("Response 2".equals(columnName)) {
                 final Taskresponse res = this.getTaskresponse(task, columnName, true);
-                target = res;
-                columnName = Taskresponse_.response.getName();
+                relation = new Pair(res, Taskresponse_.response.getName());
             }else if("Remarks".equals(columnName)) {
                 final Taskresponse res = this.getRemark(task, columnName, true);
-                target = res;
-                columnName = Taskresponse_.response.getName();
+                relation = new Pair(res, Taskresponse_.response.getName());
             }else{
-                final Pair<Object, String> pair = super.getEntityRelation(entity, rowIndex, columnName, value);
-                target = pair.key;
-                columnName = pair.value;
+                relation = super.getEntityRelation(entity, rowIndex, columnIndex, value);
             }
         }else{
-            final Pair<Object, String> pair = super.getEntityRelation(entity, rowIndex, columnName, value);
-            target = pair.key;
-            columnName = pair.value;
+            relation = super.getEntityRelation(entity, rowIndex, columnIndex, value);
         }
-        return new Pair(target, columnName);
+        return relation;
     }
     
     @Override
@@ -158,8 +161,7 @@ public class TasktrackerCoreResultModel<T> extends ResultModelImpl<T> {
     }
     
     @Override
-    public void update(Object entity, String entityColumn, Object target, 
-            String targetColumn, Object targetValue, String actionId) {
+    public Object formatBeforeUpdate(Object target, String targetColumn, Object targetValue) {
         
         if(target instanceof Doc && 
                 "subject".equals(targetColumn) &&
@@ -168,13 +170,13 @@ public class TasktrackerCoreResultModel<T> extends ResultModelImpl<T> {
             targetValue = "";
         }
         
-        super.update(entity, entityColumn, target, targetColumn, targetValue, actionId);
+        return targetValue;
     }
     
     public Taskresponse getRemark(Task task, String columnName, boolean createIfNone) {
         
         return this.getTaskresponse(task, this.apexAppointment, 
-                this.remarkFilter, columnName, createIfNone);
+                this.authorIsApexAppointment, columnName, createIfNone);
     }
     
     public Taskresponse getTaskresponse(Task task, String columnName, boolean createIfNone) {
@@ -184,7 +186,7 @@ public class TasktrackerCoreResultModel<T> extends ResultModelImpl<T> {
         }
         
         return this.getTaskresponse(task, this.currentUserAppointment, 
-                this.taskresponseFilter, columnName, createIfNone);
+                this.taskresponseTest, columnName, createIfNone);
     }
     
     private Taskresponse getTaskresponse(Task task, Appointment author, 

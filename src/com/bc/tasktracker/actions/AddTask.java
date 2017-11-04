@@ -35,7 +35,9 @@ import java.util.logging.Logger;
 import com.bc.appcore.actions.Action;
 import com.bc.jpa.dao.Criteria;
 import com.bc.tasktracker.TasktrackerAppCore;
+import com.bc.tasktracker.functions.GetAppointment;
 import java.util.List;
+import java.util.Objects;
 import javax.persistence.NonUniqueResultException;
 
 /**
@@ -53,7 +55,7 @@ public class AddTask implements Action<AppCore, Task> {
         
         final TasktrackerAppCore app = (TasktrackerAppCore)appCore;
         
-        try(Dao dao = app.getDao(Task.class)){
+        try(Dao dao = app.getActivePersistenceUnitContext().getDao()){
             
             dao.begin();
             
@@ -63,7 +65,7 @@ public class AddTask implements Action<AppCore, Task> {
             logger.log(Level.FINE, "docid: {0}", docid);
             
             if(docid != null) {
-                doc = app.getDao(Doc.class).findAndClose(Doc.class, docid);
+                doc = app.getActivePersistenceUnitContext().getDao().findAndClose(Doc.class, docid);
                 logger.log(Level.FINER, "Doc: {0}", doc);
                 if(doc == null) {
                     throw new InvalidParameterException(Doc_.docid.getName() + " = " + docid);
@@ -74,7 +76,7 @@ public class AddTask implements Action<AppCore, Task> {
                 final String subj = (String)params.get(Doc_.subject.getName());
                 final Date datesigned = (Date)params.get(Doc_.datesigned.getName());
                 
-                doc = new DocDao(app.getJpaContext()).findOrCreateIfNone(datesigned, refnum, subj);
+                doc = new DocDao(app.getActivePersistenceUnitContext()).findOrCreateIfNone(datesigned, refnum, subj);
                 if(doc.getDocid() == null) {
                     logger.log(Level.FINER, "Persisting: {0}", doc);
                     dao.persist(doc);
@@ -87,7 +89,7 @@ public class AddTask implements Action<AppCore, Task> {
                 throw new ParameterNotFoundException(resCol);
             }
             
-            final List<Appointment> found = app.getJpaContext().getTextSearch().search(Appointment.class, resVal, Criteria.ComparisonOperator.EQUALS);
+            final List<Appointment> found = app.getActivePersistenceUnitContext().getTextSearch().search(Appointment.class, resVal, Criteria.ComparisonOperator.EQUALS);
             if(found == null || found.isEmpty()) {
                 throw new InvalidParameterException(resCol + " = " + resVal);
             }
@@ -105,10 +107,14 @@ public class AddTask implements Action<AppCore, Task> {
             final Task task = new Task();
             task.setDescription((String)params.get(Task_.description.getName()));
             task.setDoc(doc);
-            final Appointment author = app.getUserAppointment(null);
-            if(author == null) {
-                throw new TaskExecutionException("You must be logged in to perform the requested operation");
+            
+            final Object authorObj = params.get(Task_.author.getName());
+            if(authorObj == null) {
+                throw new ParameterNotFoundException(Task_.author.getName());
             }
+            final Appointment author = new GetAppointment().apply(app.getActivePersistenceUnitContext(), authorObj);
+            Objects.requireNonNull(author);
+            
             task.setAuthor(author);
             task.setReponsibility(responsibility);
             task.setTimeopened((Date)params.get(Task_.timeopened.getName()));

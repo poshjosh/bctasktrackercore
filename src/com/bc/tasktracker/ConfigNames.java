@@ -21,6 +21,8 @@ package com.bc.tasktracker;
  */
 public interface ConfigNames {
     
+    String APEXAPPOINTMENT_APPOINTMENTID = "apexappointment.appointmentid";
+    
     String PERSISTENCE_UNIT_MASTER_REQUIRES_AUTH = "persistenceUnit.master.authenticationRequired";
     
     String PERSISTENCE_UNIT_SLAVE_REQUIRES_AUTH = "persistenceUnit.slave.authenticationRequired";
@@ -33,10 +35,6 @@ public interface ConfigNames {
     
     String USER_SEES_ONLY_OWN_RESPONSES = "userSeesOnlyOwnResponses";
     
-    String DEADLINE_HOURS = "deadlineHours";
-    
-    String DEADLINE_REMINDER_INTERVAL_HOURS = "deadlineReminderIntervalHours";
-
     String DEFAULT_DEADLINE_EXTENSION_HOURS = "defaultDeadlineExtensionHours";
     
     String SEARCHRESULTS_PAGESIZE = "searchresultsPagesize";
@@ -47,7 +45,9 @@ public interface ConfigNames {
     
     String DATE_PATTERN = "datePattern";
     
-    String REPORT_FOLDER_PATH = "reportsOutputDir";
+    String REPORTS_OUTPUT_DIR = "reports.output.dir";
+    
+    String REPORTS_OUTPUT_FONT = "reports.output.font";
     
     String SERIAL_COLUMNNAME = "serialColumnName";
 }

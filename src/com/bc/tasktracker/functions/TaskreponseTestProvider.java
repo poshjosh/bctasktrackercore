@@ -16,7 +16,6 @@
 
 package com.bc.tasktracker.functions;
 
-import static com.bc.appcore.jpa.SlaveUpdateListenerImpl.app;
 import com.bc.config.Config;
 import com.bc.tasktracker.ConfigNames;
 import com.bc.tasktracker.jpa.entities.master.Appointment;
@@ -28,20 +27,20 @@ import java.util.function.Predicate;
 /**
  * @author Chinomso Bassey Ikwuagwu on Aug 30, 2017 6:41:40 PM
  */
-public class GetDefaultTaskreponseFilter implements BiFunction<Appointment, Config, Predicate<Taskresponse>> {
+public class TaskreponseTestProvider implements BiFunction<Appointment, Config, Predicate<Taskresponse>> {
 
-    public GetDefaultTaskreponseFilter() { }
+    public TaskreponseTestProvider() { }
 
     @Override
     public Predicate<Taskresponse> apply(Appointment appt, Config config) {
         
         if(config.getBoolean(ConfigNames.USER_SEES_ONLY_OWN_RESPONSES, false)) {
             
-            return (taskresponse) -> true;
+            return new TaskresponseAuthorTest(appt);
             
         }else{
             
-            return new TaskresponseAuthorTest(appt);
+            return (taskresponse) -> true;
         }
     }
 }

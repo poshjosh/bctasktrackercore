@@ -20,12 +20,12 @@ import com.bc.appcore.AppCore;
 import com.bc.appcore.actions.Action;
 import com.bc.appcore.exceptions.TaskExecutionException;
 import com.bc.appcore.parameter.ParameterException;
-import com.bc.jpa.JpaContext;
 import com.bc.jpa.dao.Criteria;
 import com.bc.tasktracker.jpa.entities.master.Appointment;
 import java.util.List;
 import java.util.Map;
 import com.bc.appcore.User;
+import com.bc.jpa.context.PersistenceUnitContext;
 
 /**
  * @author Chinomso Bassey Ikwuagwu on Jul 31, 2017 7:54:24 PM
@@ -49,9 +49,9 @@ public class GetAppointmentForUser implements Action<AppCore, Appointment> {
         
         final String username = user.getName();
         
-        final JpaContext jpaContext = app.getJpaContext();
+        final PersistenceUnitContext puContext = app.getActivePersistenceUnitContext();
         
-        final List<Appointment> found = jpaContext.getTextSearch().search(Appointment.class, username, Criteria.ComparisonOperator.EQUALS);
+        final List<Appointment> found = puContext.getTextSearch().search(Appointment.class, username, Criteria.ComparisonOperator.EQUALS);
 
         if(found == null || found.size() < 1) {
             throw new TaskExecutionException("Could not find any appointment matching supplied username: " + username);

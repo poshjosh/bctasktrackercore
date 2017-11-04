@@ -26,7 +26,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.function.Predicate;
 import com.bc.tasktracker.TasktrackerAppCore;
-import com.bc.tasktracker.functions.GetDefaultTaskreponseFilter;
+import com.bc.tasktracker.functions.TaskreponseTestProvider;
 
 /**
  * @author Chinomso Bassey Ikwuagwu on Feb 11, 2017 2:20:04 AM
@@ -84,7 +84,7 @@ public class TaskHtmlBuilder implements HtmlBuilder<Task> {
             final Appointment currUserAppt = app.getUserAppointment(null);
             
             final Predicate<Taskresponse> taskresponseFilter = 
-                    new GetDefaultTaskreponseFilter().apply(currUserAppt, app.getConfig());
+                    new TaskreponseTestProvider().apply(currUserAppt, app.getConfig());
             
             
             

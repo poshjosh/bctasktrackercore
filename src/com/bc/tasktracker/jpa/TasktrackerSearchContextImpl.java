@@ -18,10 +18,10 @@ package com.bc.tasktracker.jpa;
 
 import com.bc.appcore.jpa.SearchContextImpl;
 import com.bc.tasktracker.ConfigNames;
-import com.bc.appcore.jpa.model.ResultModel;
 import com.bc.jpa.dao.SelectDao;
 import java.util.Objects;
 import com.bc.tasktracker.TasktrackerAppCore;
+import com.bc.appcore.jpa.model.EntityResultModel;
 
 /**
  * @author Chinomso Bassey Ikwuagwu on Feb 20, 2017 8:05:21 PM
@@ -31,7 +31,7 @@ public class TasktrackerSearchContextImpl<T>
     
     private final TasktrackerAppCore app;
     
-    public TasktrackerSearchContextImpl(TasktrackerAppCore app, ResultModel<T> resultModel) {
+    public TasktrackerSearchContextImpl(TasktrackerAppCore app, EntityResultModel<T> resultModel) {
         super(app, resultModel,
                 app.getConfig().getInt(ConfigNames.SEARCHRESULTS_PAGESIZE, 20),
                 app.getConfig().getBoolean(ConfigNames.SEARCHRESULTS_USECACHE, true));
@@ -48,7 +48,7 @@ public class TasktrackerSearchContextImpl<T>
     public SelectDaoBuilder<T> getSelectDaoBuilder() {
         final Class<T> resultType = this.getResultType();
         final SelectDaoBuilder builder = new SelectDaoBuilderImpl();
-        builder.resultType(resultType).jpaContext(app.getJpaContext());
+        builder.resultType(resultType).persistenceUnitContext(app.getActivePersistenceUnitContext());
         return builder;
     }
 }
